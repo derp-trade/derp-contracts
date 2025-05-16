@@ -79,6 +79,19 @@ describe("derp-contracts", () => {
       })
       .view();
 
-      console.log("User status: ", tx2);
+    console.log("User status: ", tx2);
+  });
+
+  it("Can get market", async () => {
+    const data = await program.methods.getMarketStatus()
+      .accounts({
+        derpState: derpState.publicKey,
+        pythPriceAccountGold: new anchor.web3.PublicKey("2uPQGpm8X4ZkxMHxrAW1QuhXcse1AHEgPih6Xp9NuEWW"),
+        pythPriceAccountSol: new anchor.web3.PublicKey("7UVimffxr9ow1uXYxsr4LHAcV58mLzhmwaeKvJ1pjLiE"),
+        pythPriceAccountFartcoin: new anchor.web3.PublicKey("2t8eUbYKjidMs3uSeYM9jXM9uudYZwGkSeTB4TKjmvnC"),
+      })
+      .view();
+
+    console.log("Market status: ", data);
   });
 });

@@ -61,4 +61,8 @@ pub mod derp_contracts {
     pub fn get_user_status(ctx: Context<UserStatus>) -> Result<UserSnapshot> {
         user_status_handler(ctx)
     }
+
+    pub fn get_market_status(ctx: Context<MarketStatus>) -> Result<MarketSnapshots> {
+        market_status_handler(ctx)
+    }
 }

@@ -29,6 +29,32 @@ pub struct UserStatus<'info> {
     pub clock: Sysvar<'info, Clock>,
 }
 
+#[derive(Accounts)]
+pub struct MarketStatus<'info> {
+    pub derp_state: Account<'info, DerpState>,
+
+    pub pyth_price_account_gold: Account<'info, PriceUpdateV2>,
+    pub pyth_price_account_sol: Account<'info, PriceUpdateV2>,
+    pub pyth_price_account_fartcoin: Account<'info, PriceUpdateV2>,
+
+    pub clock: Sysvar<'info, Clock>,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize)]
+pub struct PositionStatus {
+    pub size: i64,
+    pub entry_price: u64,
+    pub current_price_oracle: u64,
+    pub current_price_amm: u64,
+    pub unrealized_pnl: i64,
+    pub initial_margin: u64,
+    pub maintenance_margin: u64,
+    pub claimable_value: i64,
+    pub funding_index: i128,
+    pub funding_rate: i64,
+    pub last_funding_time: i64,
+}
+
 fn get_position_status(
     derp_state: &Account<'_, DerpState>,
     user_account: &Account<'_, UserAccount>,
@@ -98,24 +124,39 @@ fn get_position_status(
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize)]
-pub struct UserSnapshot {
-    pub balance: u64,
-    pub position_status: [PositionStatus; 3],
-}
-
-#[derive(AnchorSerialize, AnchorDeserialize)]
-pub struct PositionStatus {
-    pub size: i64,
-    pub entry_price: u64,
+pub struct MarketSnapshot {
     pub current_price_oracle: u64,
     pub current_price_amm: u64,
-    pub unrealized_pnl: i64,
-    pub initial_margin: u64,
-    pub maintenance_margin: u64,
-    pub claimable_value: i64,
     pub funding_index: i128,
     pub funding_rate: i64,
     pub last_funding_time: i64,
+}
+
+fn get_market_status(
+    derp_state: &Account<'_, DerpState>,
+    pyth_price_account: &Account<'_, PriceUpdateV2>,
+    asset_type: u8,
+) -> Result<MarketSnapshot> {
+    let market = derp_state.markets[asset_type as usize];
+
+    let oracle_price = get_pyth_price(pyth_price_account, asset_type)?;
+    let amm_price = calculate_price_from_skew(oracle_price, market.skew, SKEW_SCALE);
+
+    let funding_rate = calculate_funding_rate(market.skew, SKEW_SCALE, MAX_FUNDING_RATE);
+
+    Ok(MarketSnapshot {
+        current_price_oracle: oracle_price,
+        current_price_amm: amm_price,
+        funding_index: market.global_funding_index,
+        funding_rate,
+        last_funding_time: market.last_funding_time,
+    })
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize)]
+pub struct UserSnapshot {
+    pub balance: u64,
+    pub position_status: [PositionStatus; 3],
 }
 
 pub fn user_status_handler(ctx: Context<UserStatus>) -> Result<UserSnapshot> {
@@ -147,4 +188,25 @@ pub fn user_status_handler(ctx: Context<UserStatus>) -> Result<UserSnapshot> {
     };
 
     Ok(snapshot)
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize)]
+pub struct MarketSnapshots {
+    pub market_snapshots: [MarketSnapshot; 3],
+}
+
+pub fn market_status_handler(ctx: Context<MarketStatus>) -> Result<MarketSnapshots> {
+    let derp_state = &ctx.accounts.derp_state;
+
+    Ok(MarketSnapshots {
+        market_snapshots: [
+            get_market_status(derp_state, &ctx.accounts.pyth_price_account_gold, GOLD)?,
+            get_market_status(derp_state, &ctx.accounts.pyth_price_account_sol, SOL)?,
+            get_market_status(
+                derp_state,
+                &ctx.accounts.pyth_price_account_fartcoin,
+                FARTCOIN,
+            )?,
+        ],
+    })
 }
