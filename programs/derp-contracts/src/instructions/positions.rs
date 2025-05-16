@@ -180,6 +180,7 @@ pub fn open_handler(
         position.size = size;
         position.entry_price = entry_price;
         position.last_funding_index = 0; // Will be updated in funding calculations
+        position.leverage = leverage;
     }
 
     // Update market skew
@@ -318,6 +319,7 @@ pub fn close_handler(ctx: Context<OpenPosition>, asset_type: u8) -> Result<()> {
         position.size = 0;
         position.entry_price = 0;
         position.last_funding_index = 0;
+        position.leverage = 0;
     }
 
     msg!(

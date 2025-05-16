@@ -9,7 +9,6 @@ pub struct CalculateFunding<'info> {
     #[account(mut)]
     pub derp_state: Account<'info, DerpState>,
 
-    // Optional: If you want to restrict this to admin only
     #[account(constraint = admin.key() == derp_state.admin @ DErrorCode::UnauthorizedAccess)]
     pub admin: Signer<'info>,
 

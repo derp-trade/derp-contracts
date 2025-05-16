@@ -34,18 +34,8 @@ pub const FARTCOIN: u8 = 2;
 pub struct Position {
     pub size: i64,                // Positive for long, negative for short
     pub entry_price: u64,         // Price at entry
+    pub leverage: u8,             // Leverage used for the position
     pub last_funding_index: i128, // Last funding index applied to this position
-}
-
-#[derive(AnchorSerialize, AnchorDeserialize)]
-pub struct PositionStatus {
-    pub size: i64,
-    pub entry_price: u64,
-    pub current_price: u64,
-    pub unrealized_pnl: i64,
-    pub initial_margin: u64,
-    pub maintenance_margin: u64,
-    pub claimable_value: u64,
 }
 
 #[account]
