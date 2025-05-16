@@ -6,10 +6,8 @@ use crate::state::*;
 use anchor_lang::prelude::*;
 use pyth_solana_receiver_sdk::price_update::PriceUpdateV2;
 
-// Add this to instructions/positions.rs
-
 #[derive(Accounts)]
-pub struct ApplyFunding<'info> {
+pub struct OpenPosition<'info> {
     #[account(mut)]
     pub derp_state: Account<'info, DerpState>,
 
@@ -22,9 +20,11 @@ pub struct ApplyFunding<'info> {
     pub user_account: Account<'info, UserAccount>,
 
     pub user: Signer<'info>,
+
+    pub pyth_price_account: Account<'info, PriceUpdateV2>,
 }
 
-pub fn apply_funding_handler(ctx: Context<ApplyFunding>) -> Result<()> {
+pub fn apply_funding_handler(ctx: &mut Context<OpenPosition>) -> Result<()> {
     let derp_state = &ctx.accounts.derp_state;
 
     // Process each market
@@ -118,24 +118,6 @@ pub fn apply_funding_handler(ctx: Context<ApplyFunding>) -> Result<()> {
 }
 
 // ===== OPEN POSITION =====
-
-#[derive(Accounts)]
-pub struct OpenPosition<'info> {
-    #[account(mut)]
-    pub derp_state: Account<'info, DerpState>,
-
-    #[account(
-        mut,
-        seeds = [b"user-account", user.key().as_ref()],
-        bump,
-        constraint = user_account.owner == user.key() @ DErrorCode::UnauthorizedAccess
-    )]
-    pub user_account: Account<'info, UserAccount>,
-
-    pub user: Signer<'info>,
-
-    pub pyth_price_account: Account<'info, PriceUpdateV2>,
-}
 
 pub fn open_handler(
     ctx: Context<OpenPosition>,
@@ -233,25 +215,7 @@ pub fn open_handler(
 
 // ===== CLOSE POSITION =====
 
-#[derive(Accounts)]
-pub struct ClosePosition<'info> {
-    #[account(mut)]
-    pub derp_state: Account<'info, DerpState>,
-
-    #[account(
-        mut,
-        seeds = [b"user-account", user.key().as_ref()],
-        bump,
-        constraint = user_account.owner == user.key() @ DErrorCode::UnauthorizedAccess
-    )]
-    pub user_account: Account<'info, UserAccount>,
-
-    pub user: Signer<'info>,
-
-    pub pyth_price_account: Account<'info, PriceUpdateV2>,
-}
-
-pub fn close_handler(ctx: Context<ClosePosition>, asset_type: u8) -> Result<()> {
+pub fn close_handler(ctx: Context<OpenPosition>, asset_type: u8) -> Result<()> {
     // Validate inputs
     require!(asset_type < 3, DErrorCode::InvalidAssetType);
 
