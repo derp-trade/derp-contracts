@@ -4,6 +4,7 @@ use crate::math::*;
 use crate::pyth::*;
 use crate::state::*;
 use anchor_lang::prelude::*;
+use pyth_solana_receiver_sdk::price_update::PriceUpdateV2;
 
 // Add this to instructions/positions.rs
 
@@ -25,11 +26,10 @@ pub struct ApplyFunding<'info> {
 
 pub fn apply_funding_handler(ctx: Context<ApplyFunding>) -> Result<()> {
     let derp_state = &ctx.accounts.derp_state;
-    let user_account = &mut ctx.accounts.user_account;
 
     // Process each market
     for (asset_idx, market) in derp_state.markets.iter().enumerate() {
-        let position = &mut user_account.positions[asset_idx];
+        let position = ctx.accounts.user_account.positions[asset_idx];
 
         // Skip if user has no position
         if position.size == 0 {
@@ -70,25 +70,34 @@ pub fn apply_funding_handler(ctx: Context<ApplyFunding>) -> Result<()> {
             let funding_payment = funding_to_pay as u64;
 
             // Cap the payment to the user's balance to prevent underflow
-            let payment = std::cmp::min(funding_payment, user_account.balance);
-            user_account.balance = user_account
-                .balance
-                .checked_sub(payment)
-                .ok_or(DErrorCode::MathOverflow)?;
 
-            msg!(
-                "User paid {} funding for {} position in market {}",
-                payment,
-                if position.size > 0 { "LONG" } else { "SHORT" },
-                asset_idx
-            );
+            {
+                let user_account = &mut ctx.accounts.user_account;
+
+                let payment = std::cmp::min(funding_payment, user_account.balance);
+                user_account.balance = user_account
+                    .balance
+                    .checked_sub(payment)
+                    .ok_or(DErrorCode::MathOverflow)?;
+
+                msg!(
+                    "User paid {} funding for {} position in market {}",
+                    payment,
+                    if position.size > 0 { "LONG" } else { "SHORT" },
+                    asset_idx
+                );
+            }
         } else if funding_to_pay < 0 {
             // User receives funding
             let funding_receipt = (-funding_to_pay) as u64;
-            user_account.balance = user_account
-                .balance
-                .checked_add(funding_receipt)
-                .ok_or(DErrorCode::MathOverflow)?;
+
+            {
+                let user_account = &mut ctx.accounts.user_account;
+                user_account.balance = user_account
+                    .balance
+                    .checked_add(funding_receipt)
+                    .ok_or(DErrorCode::MathOverflow)?;
+            }
 
             msg!(
                 "User received {} funding for {} position in market {}",
@@ -99,7 +108,10 @@ pub fn apply_funding_handler(ctx: Context<ApplyFunding>) -> Result<()> {
         }
 
         // Update position's funding index to match global index
-        position.last_funding_index = market.global_funding_index;
+        {
+            let position = &mut ctx.accounts.user_account.positions[asset_idx];
+            position.last_funding_index = market.global_funding_index;
+        }
     }
 
     Ok(())
@@ -116,14 +128,13 @@ pub struct OpenPosition<'info> {
         mut,
         seeds = [b"user-account", user.key().as_ref()],
         bump,
-        constraint = user_account.owner == user.key() @ DDErrorCode::UnauthorizedAccess
+        constraint = user_account.owner == user.key() @ DErrorCode::UnauthorizedAccess
     )]
     pub user_account: Account<'info, UserAccount>,
 
     pub user: Signer<'info>,
 
-    /// CHECK: This account is validated in the handler
-    pub pyth_price_account: AccountInfo<'info>,
+    pub pyth_price_account: Account<'info, PriceUpdateV2>,
 }
 
 pub fn open_handler(
@@ -133,15 +144,14 @@ pub fn open_handler(
     leverage: u8,
 ) -> Result<()> {
     // Validate inputs
-    require!(asset_type < 3, DDErrorCode::InvalidAssetType);
-    require!(size != 0, DDErrorCode::InvalidPositionSize);
+    require!(asset_type < 3, DErrorCode::InvalidAssetType);
+    require!(size != 0, DErrorCode::InvalidPositionSize);
     require!(
         leverage > 0 && leverage <= MAX_LEVERAGE,
-        DDErrorCode::InvalidLeverage
+        DErrorCode::InvalidLeverage
     );
 
     let derp_state = &mut ctx.accounts.derp_state;
-    let user_account = &mut ctx.accounts.user_account;
 
     // Get the market info
     let market = &mut derp_state.markets[asset_type as usize];
@@ -149,11 +159,11 @@ pub fn open_handler(
     // Verify the correct Pyth account is provided
     require!(
         market.pyth_price_account == ctx.accounts.pyth_price_account.key(),
-        DDErrorCode::InvalidOracleAccount
+        DErrorCode::InvalidOracleAccount
     );
 
     // Get the current price from Pyth
-    let base_price = get_pyth_price(&ctx.accounts.pyth_price_account)?;
+    let base_price = get_pyth_price(&ctx.accounts.pyth_price_account, asset_type)?;
 
     // Calculate the entry price based on market skew
     let entry_price = calculate_price_from_skew(base_price, market.skew, SKEW_SCALE);
@@ -163,26 +173,32 @@ pub fn open_handler(
     let required_margin =
         position_notional * INITIAL_MARGIN_REQUIREMENT / PERCENTAGE_DECIMALS / leverage as u64;
 
-    // Check if user has enough balance
     require!(
-        user_account.balance >= required_margin,
-        DDErrorCode::InsufficientBalance
+        ctx.accounts.user_account.balance >= required_margin,
+        DErrorCode::InsufficientBalance
     );
 
     // Check if user already has a position for this asset
-    let position = &mut user_account.positions[asset_type as usize];
-    require!(position.size == 0, DDErrorCode::PositionAlreadyExists);
+    {
+        let position = &mut ctx.accounts.user_account.positions[asset_type as usize];
+        require!(position.size == 0, DErrorCode::PositionAlreadyExists);
+    }
+
+    let user_account = &mut ctx.accounts.user_account;
 
     // Update user's balance
     user_account.balance = user_account
         .balance
         .checked_sub(required_margin)
-        .ok_or(DDErrorCode::MathOverflow)?;
+        .ok_or(DErrorCode::MathOverflow)?;
 
-    // Update position
-    position.size = size;
-    position.entry_price = entry_price;
-    position.last_funding_index = 0; // Will be updated in funding calculations
+    {
+        let position = &mut ctx.accounts.user_account.positions[asset_type as usize];
+        // Update position
+        position.size = size;
+        position.entry_price = entry_price;
+        position.last_funding_index = 0; // Will be updated in funding calculations
+    }
 
     // Update market skew
     if size > 0 {
@@ -190,13 +206,13 @@ pub fn open_handler(
         market.total_long_size = market
             .total_long_size
             .checked_add(size as u64)
-            .ok_or(DDErrorCode::MathOverflow)?;
+            .ok_or(DErrorCode::MathOverflow)?;
     } else {
         // Short position
         market.total_short_size = market
             .total_short_size
             .checked_add((-size) as u64)
-            .ok_or(DDErrorCode::MathOverflow)?;
+            .ok_or(DErrorCode::MathOverflow)?;
     }
 
     // Recalculate market skew
@@ -226,22 +242,20 @@ pub struct ClosePosition<'info> {
         mut,
         seeds = [b"user-account", user.key().as_ref()],
         bump,
-        constraint = user_account.owner == user.key() @ DDErrorCode::UnauthorizedAccess
+        constraint = user_account.owner == user.key() @ DErrorCode::UnauthorizedAccess
     )]
     pub user_account: Account<'info, UserAccount>,
 
     pub user: Signer<'info>,
 
-    /// CHECK: This account is validated in the handler
-    pub pyth_price_account: AccountInfo<'info>,
+    pub pyth_price_account: Account<'info, PriceUpdateV2>,
 }
 
 pub fn close_handler(ctx: Context<ClosePosition>, asset_type: u8) -> Result<()> {
     // Validate inputs
-    require!(asset_type < 3, DDErrorCode::InvalidAssetType);
+    require!(asset_type < 3, DErrorCode::InvalidAssetType);
 
     let derp_state = &mut ctx.accounts.derp_state;
-    let user_account = &mut ctx.accounts.user_account;
 
     // Get the market info
     let market = &mut derp_state.markets[asset_type as usize];
@@ -249,17 +263,17 @@ pub fn close_handler(ctx: Context<ClosePosition>, asset_type: u8) -> Result<()> 
     // Verify the correct Pyth account is provided
     require!(
         market.pyth_price_account == ctx.accounts.pyth_price_account.key(),
-        DDErrorCode::InvalidOracleAccount
+        DErrorCode::InvalidOracleAccount
     );
 
     // Get the position
-    let position = &mut user_account.positions[asset_type as usize];
+    let position = ctx.accounts.user_account.positions[asset_type as usize];
 
     // Check if position exists
-    require!(position.size != 0, DDErrorCode::NoPositionExists);
+    require!(position.size != 0, DErrorCode::NoPositionExists);
 
     // Get the current price from Pyth
-    let base_price = get_pyth_price(&ctx.accounts.pyth_price_account)?;
+    let base_price = get_pyth_price(&ctx.accounts.pyth_price_account, asset_type)?;
 
     // Calculate the exit price based on market skew
     let exit_price = calculate_price_from_skew(base_price, market.skew, SKEW_SCALE);
@@ -290,14 +304,17 @@ pub fn close_handler(ctx: Context<ClosePosition>, asset_type: u8) -> Result<()> 
         (position.size.abs() as u128 * position.entry_price as u128 / PRICE_DECIMALS) as u64;
     let locked_margin = position_notional * INITIAL_MARGIN_REQUIREMENT / PERCENTAGE_DECIMALS;
 
+    let user_account: &mut Account<'_, UserAccount> = &mut ctx.accounts.user_account;
+
     // Update user's balance (return margin + PnL)
     if pnl >= 0 {
-        user_account.balance = user_account
+        let new_balance = user_account
             .balance
             .checked_add(locked_margin)
-            .ok_or(DDErrorCode::MathOverflow)?
+            .ok_or(DErrorCode::MathOverflow)?
             .checked_add(pnl as u64)
-            .ok_or(DDErrorCode::MathOverflow)?;
+            .ok_or(DErrorCode::MathOverflow)?;
+        user_account.balance = new_balance;
     } else {
         // Ensure we don't underflow if loss exceeds margin
         let loss = pnl.abs() as u64;
@@ -309,7 +326,7 @@ pub fn close_handler(ctx: Context<ClosePosition>, asset_type: u8) -> Result<()> 
             user_account.balance = user_account
                 .balance
                 .checked_add(locked_margin - loss)
-                .ok_or(DDErrorCode::MathOverflow)?;
+                .ok_or(DErrorCode::MathOverflow)?;
         }
     }
 
@@ -319,22 +336,25 @@ pub fn close_handler(ctx: Context<ClosePosition>, asset_type: u8) -> Result<()> 
         market.total_long_size = market
             .total_long_size
             .checked_sub(position.size as u64)
-            .ok_or(DDErrorCode::MathOverflow)?;
+            .ok_or(DErrorCode::MathOverflow)?;
     } else {
         // Short position
         market.total_short_size = market
             .total_short_size
             .checked_sub((-position.size) as u64)
-            .ok_or(DDErrorCode::MathOverflow)?;
+            .ok_or(DErrorCode::MathOverflow)?;
     }
 
     // Recalculate market skew
     market.skew = market.total_long_size as i64 - market.total_short_size as i64;
 
-    // Clear the position
-    position.size = 0;
-    position.entry_price = 0;
-    position.last_funding_index = 0;
+    {
+        let position = &mut ctx.accounts.user_account.positions[asset_type as usize];
+        // Clear the position
+        position.size = 0;
+        position.entry_price = 0;
+        position.last_funding_index = 0;
+    }
 
     msg!(
         "Closed position for asset {}: PnL={}, exit_price={}",

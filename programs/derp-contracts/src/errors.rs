@@ -26,6 +26,9 @@ pub enum DErrorCode {
     #[msg("Invalid oracle account")]
     InvalidOracleAccount,
     
+    #[msg("Invalid oracle price")]
+    InvalidOraclePrice,
+
     #[msg("Math overflow")]
     MathOverflow,
 }

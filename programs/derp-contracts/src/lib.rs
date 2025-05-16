@@ -1,11 +1,16 @@
-use anchor_lang::prelude::*;
-
 pub mod constants;
 pub mod errors;
 pub mod instructions;
 pub mod math;
 pub mod pyth;
 pub mod state;
+
+use anchor_lang::prelude::*;
+
+use instructions::funding::CalculateFunding;
+use instructions::initialize::Initialize;
+use instructions::positions::{ApplyFunding, ClosePosition, OpenPosition};
+use instructions::user_account::CreateUserAccount;
 
 declare_id!("GZeLk7wqD1MUk2ELdMw4KskogNQsckoVqCTCbepxT1h3");
 
@@ -14,7 +19,7 @@ pub mod derp_contracts {
     use super::*;
 
     pub fn initialize(
-        ctx: Context<instructions::initialize::Initialize>,
+        ctx: Context<Initialize>,
         gold_pyth_account: Pubkey,
         sol_pyth_account: Pubkey,
         fartcoin_pyth_account: Pubkey,
@@ -27,14 +32,12 @@ pub mod derp_contracts {
         )
     }
 
-    pub fn create_user_account(
-        ctx: Context<instructions::user_account::CreateUserAccount>,
-    ) -> Result<()> {
+    pub fn create_user_account(ctx: Context<CreateUserAccount>) -> Result<()> {
         instructions::user_account::create_handler(ctx)
     }
 
     pub fn open_position(
-        ctx: Context<instructions::positions::OpenPosition>,
+        ctx: Context<OpenPosition>,
         asset_type: u8,
         size: i64,
         leverage: u8,
@@ -50,10 +53,7 @@ pub mod derp_contracts {
         instructions::positions::open_handler(ctx, asset_type, size, leverage)
     }
 
-    pub fn close_position(
-        ctx: Context<instructions::positions::ClosePosition>,
-        asset_type: u8,
-    ) -> Result<()> {
+    pub fn close_position(ctx: Context<ClosePosition>, asset_type: u8) -> Result<()> {
         // Apply any pending funding before closing the position
         // instructions::positions::apply_funding_handler(Context::new(
         //     &ctx.program_id,
@@ -65,11 +65,11 @@ pub mod derp_contracts {
         instructions::positions::close_handler(ctx, asset_type)
     }
 
-    pub fn calculate_funding(ctx: Context<instructions::funding::CalculateFunding>) -> Result<()> {
+    pub fn calculate_funding(ctx: Context<CalculateFunding>) -> Result<()> {
         instructions::funding::handler(ctx)
     }
 
-    pub fn apply_funding(ctx: Context<instructions::positions::ApplyFunding>) -> Result<()> {
+    pub fn apply_funding(ctx: Context<ApplyFunding>) -> Result<()> {
         instructions::positions::apply_funding_handler(ctx)
     }
 }
