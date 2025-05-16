@@ -5,12 +5,9 @@ pub mod math;
 pub mod pyth;
 pub mod state;
 
-use anchor_lang::prelude::*;
+pub use crate::instructions::*;
 
-use instructions::funding::CalculateFunding;
-use instructions::initialize::Initialize;
-use instructions::positions::{ApplyFunding, ClosePosition, OpenPosition};
-use instructions::user_account::CreateUserAccount;
+use anchor_lang::prelude::*;
 
 declare_id!("GZeLk7wqD1MUk2ELdMw4KskogNQsckoVqCTCbepxT1h3");
 
@@ -24,7 +21,7 @@ pub mod derp_contracts {
         sol_pyth_account: Pubkey,
         fartcoin_pyth_account: Pubkey,
     ) -> Result<()> {
-        instructions::initialize::handler(
+        initialize_handler(
             ctx,
             gold_pyth_account,
             sol_pyth_account,
@@ -33,7 +30,7 @@ pub mod derp_contracts {
     }
 
     pub fn create_user_account(ctx: Context<CreateUserAccount>) -> Result<()> {
-        instructions::user_account::create_handler(ctx)
+        create_handler(ctx)
     }
 
     pub fn open_position(
@@ -50,7 +47,7 @@ pub mod derp_contracts {
         //     ctx.bumps.clone(),
         // ))?;
 
-        instructions::positions::open_handler(ctx, asset_type, size, leverage)
+        open_handler(ctx, asset_type, size, leverage)
     }
 
     pub fn close_position(ctx: Context<ClosePosition>, asset_type: u8) -> Result<()> {
@@ -62,14 +59,14 @@ pub mod derp_contracts {
         //     ctx.bumps.clone(),
         // ))?;
 
-        instructions::positions::close_handler(ctx, asset_type)
+        close_handler(ctx, asset_type)
     }
 
     pub fn calculate_funding(ctx: Context<CalculateFunding>) -> Result<()> {
-        instructions::funding::handler(ctx)
+        calculate_funding_handler(ctx)
     }
 
     pub fn apply_funding(ctx: Context<ApplyFunding>) -> Result<()> {
-        instructions::positions::apply_funding_handler(ctx)
+        apply_funding_handler(ctx)
     }
 }
