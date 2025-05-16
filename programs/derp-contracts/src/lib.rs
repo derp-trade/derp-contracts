@@ -57,4 +57,8 @@ pub mod derp_contracts {
     pub fn apply_funding(mut ctx: Context<OpenPosition>) -> Result<()> {
         apply_funding_handler(&mut ctx)
     }
+
+    pub fn get_user_status(ctx: Context<UserStatus>) -> Result<UserSnapshot> {
+        user_status_handler(ctx)
+    }
 }
