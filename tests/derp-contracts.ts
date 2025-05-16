@@ -1,7 +1,7 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
-import { DerpContracts } from "../target/types/derp_contracts";
 import { expect } from "chai";
+import { DerpContracts } from "../target/types/derp_contracts";
 
 describe("derp-contracts", () => {
   // Configure the client to use the local cluster.
@@ -68,5 +68,17 @@ describe("derp-contracts", () => {
     console.log("Balance: ", userAccount.balance.toNumber() / base);
     console.log("Position size: ", userAccount.positions[0].size.toNumber() / base);
     console.log("Entry price: ", userAccount.positions[0].entryPrice.toNumber() / base);
+
+    const tx2 = await program.methods.getUserStatus()
+      .accounts({
+        user: provider.wallet.publicKey,
+        derpState: derpState.publicKey,
+        pythPriceAccountGold: new anchor.web3.PublicKey("2uPQGpm8X4ZkxMHxrAW1QuhXcse1AHEgPih6Xp9NuEWW"),
+        pythPriceAccountSol: new anchor.web3.PublicKey("7UVimffxr9ow1uXYxsr4LHAcV58mLzhmwaeKvJ1pjLiE"),
+        pythPriceAccountFartcoin: new anchor.web3.PublicKey("2t8eUbYKjidMs3uSeYM9jXM9uudYZwGkSeTB4TKjmvnC"),
+      })
+      .view();
+
+      console.log("User status: ", tx2);
   });
 });
