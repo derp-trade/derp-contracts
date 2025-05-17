@@ -33,7 +33,7 @@ To run the landing page locally, follow these steps:
 
 ## How to Contribute
 
-We welcome contributions to improve our landing page. If you find an issue or have suggestions, please open an issue on our [GitHub repository](https://github.com/derp-trade/derp-contracts/issues). Your feedback is essential for making derp.trade better.
+We welcome contributions to improve our contracts. If you find an issue or have suggestions, please open an issue on our [GitHub repository](https://github.com/derp-trade/derp-contracts/issues). Your feedback is essential for making derp.trade better.
 
 ## Quick Links
 
