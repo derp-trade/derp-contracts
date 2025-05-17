@@ -53,6 +53,7 @@ pub struct PositionStatus {
     pub funding_index: i128,
     pub funding_rate: i64,
     pub last_funding_time: i64,
+    pub leverage: u8,
 }
 
 fn get_position_status(
@@ -120,6 +121,7 @@ fn get_position_status(
         funding_index: market.global_funding_index,
         funding_rate,
         last_funding_time: market.last_funding_time,
+        leverage: position.leverage,
     })
 }
 
