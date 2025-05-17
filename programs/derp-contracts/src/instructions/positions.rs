@@ -144,6 +144,24 @@ pub fn open_handler(
         DErrorCode::InvalidOracleAccount
     );
 
+    // Update market skew
+    if size > 0 {
+        // Long position
+        market.total_long_size = market
+            .total_long_size
+            .checked_add(size as u64)
+            .ok_or(DErrorCode::MathOverflow)?;
+    } else {
+        // Short position
+        market.total_short_size = market
+            .total_short_size
+            .checked_add((-size) as u64)
+            .ok_or(DErrorCode::MathOverflow)?;
+    }
+
+    // Recalculate market skew
+    market.skew = market.total_long_size as i64 - market.total_short_size as i64;
+
     // Get the current price from Pyth
     let base_price = get_pyth_price(&ctx.accounts.pyth_price_account, asset_type)?;
 
@@ -153,7 +171,7 @@ pub fn open_handler(
     // Calculate the required margin
     let position_notional = (size.abs() as u128 * entry_price as u128 / PRICE_DECIMALS) as u64;
     let required_margin =
-        position_notional * INITIAL_MARGIN_REQUIREMENT / PERCENTAGE_DECIMALS / leverage as u64;
+        ((position_notional * INITIAL_MARGIN_REQUIREMENT) / PERCENTAGE_DECIMALS) / leverage as u64;
 
     require!(
         ctx.accounts.user_account.balance >= required_margin,
@@ -182,24 +200,6 @@ pub fn open_handler(
         position.last_funding_index = 0; // Will be updated in funding calculations
         position.leverage = leverage;
     }
-
-    // Update market skew
-    if size > 0 {
-        // Long position
-        market.total_long_size = market
-            .total_long_size
-            .checked_add(size as u64)
-            .ok_or(DErrorCode::MathOverflow)?;
-    } else {
-        // Short position
-        market.total_short_size = market
-            .total_short_size
-            .checked_add((-size) as u64)
-            .ok_or(DErrorCode::MathOverflow)?;
-    }
-
-    // Recalculate market skew
-    market.skew = market.total_long_size as i64 - market.total_short_size as i64;
 
     msg!(
         "Opened {} position for asset {}: size={}, leverage={}x, margin={}, entry_price={}",
