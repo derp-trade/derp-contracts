@@ -267,7 +267,9 @@ pub fn close_handler(ctx: Context<OpenPosition>, asset_type: u8) -> Result<()> {
     // Calculate the margin that was locked
     let position_notional =
         (position.size.abs() as u128 * position.entry_price as u128 / PRICE_DECIMALS) as u64;
-    let locked_margin = position_notional * INITIAL_MARGIN_REQUIREMENT / PERCENTAGE_DECIMALS;
+    let locked_margin = position_notional * INITIAL_MARGIN_REQUIREMENT
+        / PERCENTAGE_DECIMALS
+        / position.leverage as u64;
 
     let user_account: &mut Account<'_, UserAccount> = &mut ctx.accounts.user_account;
 
