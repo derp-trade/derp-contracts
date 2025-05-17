@@ -68,7 +68,7 @@ fn get_position_status(
     let oracle_price = get_pyth_price(pyth_price_account, asset_type)?;
     let amm_price = calculate_price_from_skew(oracle_price, market.skew, SKEW_SCALE);
 
-    let position_size = position.size.abs() as u128;
+    let position_size = position.size.abs() as u128 * position.leverage as u128;
     let entry_value = position_size * position.entry_price as u128 / PRICE_DECIMALS;
     let current_value = position_size * amm_price as u128 / PRICE_DECIMALS;
 
@@ -110,7 +110,7 @@ fn get_position_status(
     let funding_rate = calculate_funding_rate(market.skew, SKEW_SCALE, MAX_FUNDING_RATE);
 
     Ok(PositionStatus {
-        size: position.size,
+        size: position.size * position.leverage as i64,
         entry_price: position.entry_price,
         current_price_oracle: oracle_price,
         current_price_amm: amm_price,

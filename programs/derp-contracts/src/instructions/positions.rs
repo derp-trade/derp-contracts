@@ -169,7 +169,7 @@ pub fn open_handler(
     let entry_price = calculate_price_from_skew(base_price, market.skew, SKEW_SCALE);
 
     // Calculate the required margin
-    let position_notional = (size.abs() as u128 * entry_price as u128 / PRICE_DECIMALS) as u64;
+    let position_notional = (size.abs() as u128 * leverage as u128 * entry_price as u128 / PRICE_DECIMALS) as u64;
     let required_margin =
         ((position_notional * INITIAL_MARGIN_REQUIREMENT) / PERCENTAGE_DECIMALS) / leverage as u64;
 
@@ -244,7 +244,7 @@ pub fn close_handler(ctx: Context<OpenPosition>, asset_type: u8) -> Result<()> {
     let exit_price = calculate_price_from_skew(base_price, market.skew, SKEW_SCALE);
 
     // Calculate PnL
-    let position_size = position.size.abs() as u128;
+    let position_size = position.size.abs() as u128 * position.leverage as u128;
     let entry_value = position_size * position.entry_price as u128 / PRICE_DECIMALS;
     let exit_value = position_size * exit_price as u128 / PRICE_DECIMALS;
 
@@ -266,7 +266,7 @@ pub fn close_handler(ctx: Context<OpenPosition>, asset_type: u8) -> Result<()> {
 
     // Calculate the margin that was locked
     let position_notional =
-        (position.size.abs() as u128 * position.entry_price as u128 / PRICE_DECIMALS) as u64;
+        (position.size.abs() as u128 * position.leverage as u128 * position.entry_price as u128 / PRICE_DECIMALS) as u64;
     let locked_margin = position_notional * INITIAL_MARGIN_REQUIREMENT
         / PERCENTAGE_DECIMALS
         / position.leverage as u64;
